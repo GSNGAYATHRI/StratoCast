@@ -29,7 +29,20 @@
         </div>
         <h1 class="text-3xl font-bold text-white">StratoCast</h1>
       </div>
-      <span class="text-sm text-gray-400" id="last-updated">Connecting...</span>
+      <div class="flex items-center space-x-4">
+        <nav class="flex items-center space-x-2">
+          <a href="/dashboard/insat" class="px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition flex items-center">
+            <i data-lucide="satellite" class="h-4 w-4 mr-2"></i>INSAT
+          </a>
+          <a href="/dashboard/meghatropiques" class="px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition flex items-center">
+            <i data-lucide="droplets" class="h-4 w-4 mr-2"></i>MEGHA
+          </a>
+          <a href="/dashboard/nisar" class="px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition flex items-center">
+            <i data-lucide="layers" class="h-4 w-4 mr-2"></i>NISAR
+          </a>
+        </nav>
+        <span class="text-sm text-gray-400 border-l border-gray-700 pl-4" id="last-updated">Connecting...</span>
+      </div>
     </header>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">

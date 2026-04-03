@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NISAR Dashboard • StratoCast</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    .loading-text { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .stat-card { transition: transform 0.2s; }
+    .stat-card:hover { transform: translateY(-2px); }
+  </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100">
+  <!-- Sidebar Navigation -->
+  <div class="flex h-screen">
+    <aside class="w-64 bg-gray-950 border-r border-gray-800">
+      <div class="p-6">
+        <div class="flex items-center space-x-3 mb-8">
+          <div class="p-2 bg-blue-600 rounded-lg">
+            <i data-lucide="satellite" class="h-6 w-6 text-white"></i>
+          </div>
+          <h1 class="text-xl font-bold text-white">StratoCast</h1>
+        </div>
+        
+        <nav class="space-y-2">
+          <a href="/" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="home" class="h-5 w-5"></i>
+            <span>Main Dashboard</span>
+          </a>
+          <a href="/dashboard/insat" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="cloud-rain" class="h-5 w-5"></i>
+            <span>INSAT-3D GPI</span>
+          </a>
+          <a href="/dashboard/meghatropiques" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="droplets" class="h-5 w-5"></i>
+            <span>MEGHATROPIQUES</span>
+          </a>
+          <a href="/dashboard/nisar" class="flex items-center space-x-3 px-4 py-3 rounded-lg bg-blue-600 text-white">
+            <i data-lucide="layers" class="h-5 w-5"></i>
+            <span>NISAR</span>
+          </a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="p-6">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-3xl font-bold text-white">NISAR Dashboard</h2>
+            <p class="text-gray-400 mt-1">Pixel Offset Analysis & Model Performance</p>
+          </div>
+          <span class="text-sm text-gray-400 px-4 py-2 bg-gray-800 rounded-lg" id="last-updated">
+            <i data-lucide="clock" class="h-4 w-4 inline mr-2"></i>Loading...
+          </span>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="stat-card bg-gradient-to-br from-cyan-500 to-cyan-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-cyan-100 text-sm">RF Accuracy</p>
+                <p class="text-3xl font-bold text-white mt-2" id="rf-accuracy">--</p>
+              </div>
+              <div class="bg-cyan-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="target" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-emerald-100 text-sm">ET Accuracy</p>
+                <p class="text-3xl font-bold text-white mt-2" id="et-accuracy">--</p>
+              </div>
+              <div class="bg-emerald-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="check-circle-2" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-violet-500 to-violet-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-violet-100 text-sm">Ensemble Accuracy</p>
+                <p class="text-3xl font-bold text-white mt-2" id="ensemble-accuracy">--</p>
+              </div>
+              <div class="bg-violet-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="layers-2" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-amber-500 to-amber-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-amber-100 text-sm">Total Records</p>
+                <p class="text-3xl font-bold text-white mt-2" id="total-records">--</p>
+              </div>
+              <div class="bg-amber-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="database" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <!-- Model Comparison -->
+          <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6">
+            <h3 class="text-xl font-semibold text-gray-200 mb-4">Model Accuracy Comparison</h3>
+            <canvas id="accuracyChart"></canvas>
+            <div class="mt-4 grid grid-cols-3 gap-3 text-center text-sm">
+              <div class="p-3 bg-cyan-900 bg-opacity-30 rounded-lg">
+                <p class="text-cyan-400 font-semibold" id="rf-score">--</p>
+                <p class="text-gray-400 text-xs mt-1">Random Forest</p>
+              </div>
+              <div class="p-3 bg-emerald-900 bg-opacity-30 rounded-lg">
+                <p class="text-emerald-400 font-semibold" id="et-score">--</p>
+                <p class="text-gray-400 text-xs mt-1">Extra Trees</p>
+              </div>
+              <div class="p-3 bg-violet-900 bg-opacity-30 rounded-lg">
+                <p class="text-violet-400 font-semibold" id="ensemble-score">--</p>
+                <p class="text-gray-400 text-xs mt-1">Ensemble</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prediction vs Actual Scatter -->
+          <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6">
+            <h3 class="text-xl font-semibold text-gray-200 mb-4">Prediction vs Actual</h3>
+            <canvas id="scatterChart"></canvas>
+            <div class="mt-4 p-4 bg-gray-900 rounded-lg">
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-400">Mean True Value:</span>
+                <span class="text-white font-semibold" id="mean-true">--</span>
+              </div>
+              <div class="flex items-center justify-between text-sm mt-2">
+                <span class="text-gray-400">Mean Ensemble Pred:</span>
+                <span class="text-white font-semibold" id="mean-ensemble">--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error Distribution and Info -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div class="lg:col-span-2 bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6">
+            <h3 class="text-xl font-semibold text-gray-200 mb-4">Pixel Offset Distribution</h3>
+            <canvas id="distChart"></canvas>
+          </div>
+
+          <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6">
+            <h3 class="text-xl font-semibold text-gray-200 mb-4">Model Insights</h3>
+            <div class="space-y-3">
+              <div class="p-4 bg-gradient-to-r from-cyan-900 to-blue-900 rounded-lg">
+                <div class="flex items-center space-x-3">
+                  <i data-lucide="brain" class="h-5 w-5 text-cyan-400"></i>
+                  <div>
+                    <p class="text-sm font-semibold text-white">Random Forest</p>
+                    <p class="text-xs text-gray-300">Ensemble tree-based model</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4 bg-gradient-to-r from-emerald-900 to-green-900 rounded-lg">
+                <div class="flex items-center space-x-3">
+                  <i data-lucide="tree-pine" class="h-5 w-5 text-emerald-400"></i>
+                  <div>
+                    <p class="text-sm font-semibold text-white">Extra Trees</p>
+                    <p class="text-xs text-gray-300">Extremely randomized trees</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4 bg-gradient-to-r from-violet-900 to-purple-900 rounded-lg">
+                <div class="flex items-center space-x-3">
+                  <i data-lucide="layers" class="h-5 w-5 text-violet-400"></i>
+                  <div>
+                    <p class="text-sm font-semibold text-white">Ensemble</p>
+                    <p class="text-xs text-gray-300">Average of RF + ET predictions</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4 bg-gray-900 rounded-lg mt-4">
+                <p class="text-xs text-gray-400">
+                  <strong class="text-gray-300">NISAR Mission:</strong> NASA-ISRO Synthetic Aperture Radar mission for Earth observation and disaster monitoring.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-xl font-semibold text-gray-200">Prediction Sample Data</h3>
+              <button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm">
+                <i data-lucide="download" class="h-4 w-4 inline mr-2"></i>Export CSV
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="text-gray-400 border-b border-gray-700">
+                  <tr>
+                    <th class="text-left py-3 px-4">True Value</th>
+                    <th class="text-left py-3 px-4">RF Prediction</th>
+                    <th class="text-left py-3 px-4">ET Prediction</th>
+                    <th class="text-left py-3 px-4">Ensemble</th>
+                    <th class="text-left py-3 px-4">RF Error</th>
+                    <th class="text-left py-3 px-4">Ensemble Error</th>
+                  </tr>
+                </thead>
+                <tbody id="data-table-body" class="text-gray-300">
+                  <tr><td colspan="6" class="text-center py-8 text-gray-500">Loading data...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    lucide.createIcons();
+  </script>
+
+  <script>
+    let accuracyChart, scatterChart, distChart;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadStats();
+      await loadDataTable();
+      
+      document.getElementById('last-updated').innerHTML = '<i data-lucide="clock" class="h-4 w-4 inline mr-2"></i>' + new Date().toLocaleString();
+      lucide.createIcons();
+    });
+
+    async function loadStats() {
+      try {
+        const response = await fetch('/api/nisar/stats');
+        const stats = await response.json();
+        
+        document.getElementById('total-records').textContent = stats.total_records.toLocaleString();
+        document.getElementById('rf-accuracy').textContent = (stats.rf_accuracy * 100).toFixed(1) + '%';
+        document.getElementById('et-accuracy').textContent = (stats.et_accuracy * 100).toFixed(1) + '%';
+        document.getElementById('ensemble-accuracy').textContent = (stats.ensemble_accuracy * 100).toFixed(1) + '%';
+        
+        document.getElementById('rf-score').textContent = (stats.rf_accuracy * 100).toFixed(1) + '%';
+        document.getElementById('et-score').textContent = (stats.et_accuracy * 100).toFixed(1) + '%';
+        document.getElementById('ensemble-score').textContent = (stats.ensemble_accuracy * 100).toFixed(1) + '%';
+        
+        document.getElementById('mean-true').textContent = stats.avg_true_value.toFixed(3);
+        document.getElementById('mean-ensemble').textContent = stats.avg_ensemble.toFixed(3);
+        
+        createAccuracyChart(stats);
+        createScatterChart();
+        createDistChart();
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    }
+
+    async function loadDataTable() {
+      try {
+        const response = await fetch('/api/nisar/data');
+        const data = await response.json();
+        
+        const tbody = document.getElementById('data-table-body');
+        tbody.innerHTML = '';
+        
+        data.slice(0, 100).forEach(row => {
+          const rfError = Math.abs(row.true_value - row.rf_pred);
+          const ensembleError = Math.abs(row.true_value - row.ensemble_pred);
+          
+          const tr = document.createElement('tr');
+          tr.className = 'border-b border-gray-700 hover:bg-gray-750';
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-semibold">${row.true_value.toFixed(4)}</td>
+            <td class="py-3 px-4 text-cyan-400">${row.rf_pred.toFixed(4)}</td>
+            <td class="py-3 px-4 text-emerald-400">${row.et_pred.toFixed(4)}</td>
+            <td class="py-3 px-4 text-violet-400 font-semibold">${row.ensemble_pred.toFixed(4)}</td>
+            <td class="py-3 px-4 ${rfError < 0.1 ? 'text-green-400' : 'text-orange-400'}">${rfError.toFixed(4)}</td>
+            <td class="py-3 px-4 ${ensembleError < 0.1 ? 'text-green-400' : 'text-orange-400'}">${ensembleError.toFixed(4)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (error) {
+        console.error('Error loading data table:', error);
+      }
+    }
+
+    function createAccuracyChart(stats) {
+      const ctx = document.getElementById('accuracyChart').getContext('2d');
+      accuracyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Random Forest', 'Extra Trees', 'Ensemble'],
+          datasets: [{
+            label: 'Accuracy',
+            data: [stats.rf_accuracy * 100, stats.et_accuracy * 100, stats.ensemble_accuracy * 100],
+            backgroundColor: ['#06b6d4', '#10b981', '#8b5cf6'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              grid: { color: '#374151' },
+              ticks: { color: '#d1d5db', callback: value => value + '%' }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#d1d5db' }
+            }
+          }
+        }
+      });
+    }
+
+    async function createScatterChart() {
+      const response = await fetch('/api/nisar/data');
+      const data = await response.json();
+      
+      const ctx = document.getElementById('scatterChart').getContext('2d');
+      scatterChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: 'Ensemble Predictions',
+            data: data.slice(0, 500).map(row => ({ x: row.true_value, y: row.ensemble_pred })),
+            backgroundColor: '#8b5cf6',
+            borderColor: '#8b5cf6',
+            pointRadius: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: '#d1d5db' } }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'True Value', color: '#d1d5db' },
+              grid: { color: '#374151' },
+              ticks: { color: '#d1d5db' }
+            },
+            y: {
+              title: { display: true, text: 'Predicted Value', color: '#d1d5db' },
+              grid: { color: '#374151' },
+              ticks: { color: '#d1d5db' }
+            }
+          }
+        }
+      });
+    }
+
+    async function createDistChart() {
+      const response = await fetch('/api/nisar/data');
+      const data = await response.json();
+      
+      const ctx = document.getElementById('distChart').getContext('2d');
+      distChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.slice(0, 200).map((_, i) => i),
+          datasets: [
+            {
+              label: 'True Values',
+              data: data.slice(0, 200).map(row => row.true_value),
+              borderColor: '#f59e0b',
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              pointRadius: 0
+            },
+            {
+              label: 'Ensemble Predictions',
+              data: data.slice(0, 200).map(row => row.ensemble_pred),
+              borderColor: '#8b5cf6',
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: '#d1d5db' } }
+          },
+          scales: {
+            x: {
+              display: false
+            },
+            y: {
+              grid: { color: '#374151' },
+              ticks: { color: '#d1d5db' }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

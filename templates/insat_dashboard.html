@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>INSAT-3D GPI Dashboard • StratoCast</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    .loading-text { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .stat-card { transition: transform 0.2s; }
+    .stat-card:hover { transform: translateY(-2px); }
+    #hazard-3d-view { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); }
+    .view-toggle { transition: all 0.2s; }
+    .view-toggle.active { background: #3b82f6 !important; }
+  </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100">
+  <!-- Sidebar Navigation -->
+  <div class="flex h-screen">
+    <aside class="w-64 bg-gray-950 border-r border-gray-800">
+      <div class="p-6">
+        <div class="flex items-center space-x-3 mb-8">
+          <div class="p-2 bg-blue-600 rounded-lg">
+            <i data-lucide="satellite" class="h-6 w-6 text-white"></i>
+          </div>
+          <h1 class="text-xl font-bold text-white">StratoCast</h1>
+        </div>
+        
+        <nav class="space-y-2">
+          <a href="/" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="home" class="h-5 w-5"></i>
+            <span>Main Dashboard</span>
+          </a>
+          <a href="/dashboard/insat" class="flex items-center space-x-3 px-4 py-3 rounded-lg bg-blue-600 text-white">
+            <i data-lucide="cloud-rain" class="h-5 w-5"></i>
+            <span>INSAT-3D GPI</span>
+          </a>
+          <a href="/dashboard/meghatropiques" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="droplets" class="h-5 w-5"></i>
+            <span>MEGHATROPIQUES</span>
+          </a>
+          <a href="/dashboard/nisar" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="layers" class="h-5 w-5"></i>
+            <span>NISAR</span>
+          </a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="p-6">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-3xl font-bold text-white">INSAT-3D GPI Dashboard</h2>
+            <p class="text-gray-400 mt-1">Ground Precipitation Index Monitoring</p>
+          </div>
+          <span class="text-sm text-gray-400 px-4 py-2 bg-gray-800 rounded-lg" id="last-updated">
+            <i data-lucide="clock" class="h-4 w-4 inline mr-2"></i>Loading...
+          </span>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="stat-card bg-gradient-to-br from-red-500 to-red-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-red-100 text-sm">High Risk Zones</p>
+                <p class="text-3xl font-bold text-white mt-2" id="high-risk-count">--</p>
+              </div>
+              <div class="bg-red-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="alert-triangle" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-yellow-500 to-yellow-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-yellow-100 text-sm">Moderate Risk</p>
+                <p class="text-3xl font-bold text-white mt-2" id="moderate-risk-count">--</p>
+              </div>
+              <div class="bg-yellow-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="alert-circle" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-green-100 text-sm">Low Risk Zones</p>
+                <p class="text-3xl font-bold text-white mt-2" id="low-risk-count">--</p>
+              </div>
+              <div class="bg-green-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="check-circle" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-blue-100 text-sm">Avg GPI</p>
+                <p class="text-3xl font-bold text-white mt-2" id="avg-gpi">--</p>
+              </div>
+              <div class="bg-blue-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="activity" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Map and Chart Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <!-- Hazard Map -->
+          <div class="lg:col-span-2 bg-gray-800 rounded-xl shadow-lg border border-gray-700">
+            <div class="p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-semibold text-gray-200">Geospatial Hazard Zones</h3>
+                <div class="flex items-center space-x-2">
+                  <button id="view-2d-btn" class="view-toggle px-4 py-2 bg-gray-700 text-white rounded-lg text-sm active">
+                    <i data-lucide="map" class="h-4 w-4 inline mr-2"></i>2D Map
+                  </button>
+                  <button id="view-3d-btn" class="view-toggle px-4 py-2 bg-gray-700 text-white rounded-lg text-sm">
+                    <i data-lucide="box" class="h-4 w-4 inline mr-2"></i>3D View
+                  </button>
+                </div>
+              </div>
+              <div class="flex items-center justify-end space-x-2 text-sm mb-2">
+                <span class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>High Risk</span>
+                <span class="flex items-center ml-4"><span class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>Moderate</span>
+                <span class="flex items-center ml-4"><span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>Low</span>
+              </div>
+              <div id="hazard-map" class="h-96 rounded-lg bg-gray-700"></div>
+              <div id="hazard-3d-view" class="h-96 rounded-lg hidden"></div>
+              <div class="mt-4 p-4 bg-gray-900 rounded-lg">
+                <div class="flex items-start space-x-2">
+                  <i data-lucide="info" class="h-5 w-5 text-blue-400 mt-0.5"></i>
+                  <p class="text-sm text-gray-400">
+                    <strong class="text-gray-300">Live Monitoring:</strong> 
+                    <span id="live-units">Loading...</span> active monitoring units. 
+                    <span id="view-description">Hazard zones represent areas with GPI > 0.8 (high risk) and 0.5-0.8 (moderate).</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- GPI Distribution Chart -->
+          <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6">
+            <h3 class="text-xl font-semibold text-gray-200 mb-4">GPI Distribution</h3>
+            <canvas id="gpiDistChart"></canvas>
+            <div class="mt-4 text-center">
+              <p class="text-sm text-gray-400">Total Records: <span id="total-records" class="text-white font-semibold">--</span></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-xl font-semibold text-gray-200">Recent Data Points</h3>
+              <button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm">
+                <i data-lucide="download" class="h-4 w-4 inline mr-2"></i>Export CSV
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="text-gray-400 border-b border-gray-700">
+                  <tr>
+                    <th class="text-left py-3 px-4">Latitude</th>
+                    <th class="text-left py-3 px-4">Longitude</th>
+                    <th class="text-left py-3 px-4">Actual GPI</th>
+                    <th class="text-left py-3 px-4">Predicted GPI</th>
+                    <th class="text-left py-3 px-4">Risk Level</th>
+                    <th class="text-left py-3 px-4">Residual</th>
+                  </tr>
+                </thead>
+                <tbody id="data-table-body" class="text-gray-300">
+                  <tr><td colspan="6" class="text-center py-8 text-gray-500">Loading data...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    lucide.createIcons();
+  </script>
+
+  <script>
+    let hazardMap, gpiChart;
+    let scene, camera, renderer, controls;
+    let currentView = '2d';
+    let hazardDataCache = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Initialize 2D map
+      hazardMap = L.map('hazard-map').setView([35, 75], 4);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(hazardMap);
+
+      // Fetch and display data
+      await loadStats();
+      await loadHazardZones();
+      await loadDataTable();
+      
+      // Setup view toggle buttons
+      document.getElementById('view-2d-btn').addEventListener('click', () => switchView('2d'));
+      document.getElementById('view-3d-btn').addEventListener('click', () => switchView('3d'));
+      
+      document.getElementById('last-updated').innerHTML = '<i data-lucide="clock" class="h-4 w-4 inline mr-2"></i>' + new Date().toLocaleString();
+      lucide.createIcons();
+    });
+
+    function switchView(view) {
+      currentView = view;
+      const mapEl = document.getElementById('hazard-map');
+      const view3dEl = document.getElementById('hazard-3d-view');
+      const btn2d = document.getElementById('view-2d-btn');
+      const btn3d = document.getElementById('view-3d-btn');
+      const viewDesc = document.getElementById('view-description');
+      
+      if (view === '2d') {
+        mapEl.classList.remove('hidden');
+        view3dEl.classList.add('hidden');
+        btn2d.classList.add('active');
+        btn3d.classList.remove('active');
+        viewDesc.textContent = 'Hazard zones represent areas with GPI > 0.8 (high risk) and 0.5-0.8 (moderate).';
+        setTimeout(() => hazardMap.invalidateSize(), 100);
+      } else {
+        mapEl.classList.add('hidden');
+        view3dEl.classList.remove('hidden');
+        btn2d.classList.remove('active');
+        btn3d.classList.add('active');
+        viewDesc.textContent = '3D visualization: Box height represents hazard intensity. Red = High risk, Yellow = Moderate, Blue = Low.';
+        init3DView();
+      }
+    }
+
+    function init3DView() {
+      if (!hazardDataCache) return;
+      
+      const container = document.getElementById('hazard-3d-view');
+      container.innerHTML = ''; // Clear previous
+      
+      // Scene setup
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+      scene.fog = new THREE.Fog(0x0f172a, 10, 50);
+      
+      // Camera
+      camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+      camera.position.set(15, 12, 15);
+      camera.lookAt(0, 0, 0);
+      
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.shadowMap.enabled = true;
+      container.appendChild(renderer.domElement);
+      
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 10);
+      directionalLight.castShadow = true;
+      scene.add(directionalLight);
+      
+      const pointLight = new THREE.PointLight(0x88ccff, 0.5, 50);
+      pointLight.position.set(0, 15, 0);
+      scene.add(pointLight);
+      
+      // Ground plane
+      const groundGeometry = new THREE.PlaneGeometry(40, 40);
+      const groundMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xffeaa7, 
+        opacity: 0.3, 
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      
+      // Create 3D hazard cubes
+      create3DHazardZones();
+      
+      // Animation loop
+      function animate() {
+        requestAnimationFrame(animate);
+        
+        // Auto-rotate
+        scene.rotation.y += 0.002;
+        
+        renderer.render(scene, camera);
+      }
+      animate();
+      
+      // Handle resize
+      window.addEventListener('resize', () => {
+        if (currentView === '3d') {
+          camera.aspect = container.clientWidth / container.clientHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+      });
+    }
+
+    function create3DHazardZones() {
+      if (!hazardDataCache) return;
+      
+      const { high_risk, moderate_risk } = hazardDataCache;
+      const gridSize = 8;
+      const cellSize = 4;
+      const grid = Array(gridSize).fill().map(() => Array(gridSize).fill().map(() => ({ count: 0, maxGPI: 0, points: [] })));
+      
+      // Aggregate data into grid cells
+      [...high_risk, ...moderate_risk].forEach(point => {
+        const x = Math.floor(((point.latitude - 29.5) / (40.5 - 29.5)) * gridSize);
+        const z = Math.floor(((point.longitude - 30.5) / (120.5 - 30.5)) * gridSize);
+        if (x >= 0 && x < gridSize && z >= 0 && z < gridSize) {
+          grid[x][z].count++;
+          grid[x][z].maxGPI = Math.max(grid[x][z].maxGPI, point.predicted_GPI);
+          grid[x][z].points.push(point);
+        }
+      });
+      
+      // Create cubes for each grid cell
+      for (let x = 0; x < gridSize; x++) {
+        for (let z = 0; z < gridSize; z++) {
+          const cell = grid[x][z];
+          if (cell.count === 0) continue;
+          
+          const height = Math.max(1, cell.maxGPI * 8);
+          const gpi = cell.maxGPI;
+          
+          // Determine color based on risk
+          let color, opacity;
+          if (gpi > 0.8) {
+            color = 0xff6b6b; // Red
+            opacity = 0.6;
+          } else if (gpi > 0.5) {
+            color = 0xffd93d; // Yellow
+            opacity = 0.5;
+          } else {
+            color = 0x6c5ce7; // Purple/Blue
+            opacity = 0.4;
+          }
+          
+          // Create transparent cube
+          const geometry = new THREE.BoxGeometry(cellSize * 0.9, height, cellSize * 0.9);
+          const material = new THREE.MeshPhysicalMaterial({
+            color: color,
+            transparent: true,
+            opacity: opacity,
+            metalness: 0.1,
+            roughness: 0.4,
+            clearcoat: 0.3,
+            side: THREE.DoubleSide
+          });
+          const cube = new THREE.Mesh(geometry, material);
+          cube.position.set(
+            (x - gridSize / 2) * cellSize,
+            height / 2,
+            (z - gridSize / 2) * cellSize
+          );
+          cube.castShadow = true;
+          cube.receiveShadow = true;
+          scene.add(cube);
+          
+          // Add wireframe edges
+          const edges = new THREE.EdgesGeometry(geometry);
+          const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.15, transparent: true });
+          const wireframe = new THREE.LineSegments(edges, lineMaterial);
+          wireframe.position.copy(cube.position);
+          scene.add(wireframe);
+          
+          // Add spheres for individual high-risk points
+          if (gpi > 0.7 && cell.points.length > 0) {
+            const sphereGeo = new THREE.SphereGeometry(0.3, 16, 16);
+            const sphereMat = new THREE.MeshStandardMaterial({
+              color: gpi > 0.8 ? 0xff3838 : 0x6dd400,
+              emissive: gpi > 0.8 ? 0xff0000 : 0x00ff00,
+              emissiveIntensity: 0.5
+            });
+            const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+            sphere.position.set(
+              cube.position.x + (Math.random() - 0.5) * 1.5,
+              height * 0.7,
+              cube.position.z + (Math.random() - 0.5) * 1.5
+            );
+            scene.add(sphere);
+          }
+        }
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const response = await fetch('/api/insat/stats');
+        const stats = await response.json();
+        
+        document.getElementById('high-risk-count').textContent = stats.high_risk_count.toLocaleString();
+        document.getElementById('moderate-risk-count').textContent = stats.moderate_risk_count.toLocaleString();
+        document.getElementById('low-risk-count').textContent = stats.low_risk_count.toLocaleString();
+        document.getElementById('avg-gpi').textContent = stats.avg_predicted_gpi.toFixed(3);
+        document.getElementById('total-records').textContent = stats.total_records.toLocaleString();
+        document.getElementById('live-units').textContent = stats.total_records.toLocaleString();
+        
+        // Create GPI distribution chart
+        createGPIChart(stats);
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    }
+
+    async function loadHazardZones() {
+      try {
+        const response = await fetch('/api/insat/hazard_zones');
+        const zones = await response.json();
+        hazardDataCache = zones; // Cache for 3D view
+        
+        // Add high risk zones (red circles)
+        zones.high_risk.forEach(point => {
+          L.circle([point.latitude, point.longitude], {
+            color: '#ef4444',
+            fillColor: '#ef4444',
+            fillOpacity: 0.6,
+            radius: 30000
+          }).addTo(hazardMap).bindPopup(`<b>High Risk</b><br>GPI: ${point.predicted_GPI.toFixed(3)}`);
+        });
+        
+        // Add moderate risk zones (yellow circles)
+        zones.moderate_risk.forEach(point => {
+          L.circle([point.latitude, point.longitude], {
+            color: '#eab308',
+            fillColor: '#eab308',
+            fillOpacity: 0.4,
+            radius: 20000
+          }).addTo(hazardMap).bindPopup(`<b>Moderate Risk</b><br>GPI: ${point.predicted_GPI.toFixed(3)}`);
+        });
+        
+        // Fit map to show all zones
+        if (zones.high_risk.length > 0 || zones.moderate_risk.length > 0) {
+          const allPoints = [...zones.high_risk, ...zones.moderate_risk];
+          const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
+          hazardMap.fitBounds(bounds);
+        }
+      } catch (error) {
+        console.error('Error loading hazard zones:', error);
+      }
+    }
+
+    async function loadDataTable() {
+      try {
+        const response = await fetch('/api/insat/data');
+        const data = await response.json();
+        
+        const tbody = document.getElementById('data-table-body');
+        tbody.innerHTML = '';
+        
+        data.slice(0, 50).forEach(row => {
+          const riskLevel = row.predicted_GPI > 0.8 ? 'High' : row.predicted_GPI > 0.5 ? 'Moderate' : 'Low';
+          const riskColor = row.predicted_GPI > 0.8 ? 'bg-red-500' : row.predicted_GPI > 0.5 ? 'bg-yellow-500' : 'bg-green-500';
+          
+          const tr = document.createElement('tr');
+          tr.className = 'border-b border-gray-700 hover:bg-gray-750';
+          tr.innerHTML = `
+            <td class="py-3 px-4">${row.latitude.toFixed(4)}</td>
+            <td class="py-3 px-4">${row.longitude.toFixed(4)}</td>
+            <td class="py-3 px-4">${row.GPI.toFixed(3)}</td>
+            <td class="py-3 px-4 font-semibold">${row.predicted_GPI.toFixed(3)}</td>
+            <td class="py-3 px-4"><span class="px-3 py-1 ${riskColor} text-white rounded-full text-xs">${riskLevel}</span></td>
+            <td class="py-3 px-4">${row.residual.toFixed(3)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (error) {
+        console.error('Error loading data table:', error);
+      }
+    }
+
+    function createGPIChart(stats) {
+      const ctx = document.getElementById('gpiDistChart').getContext('2d');
+      gpiChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['High Risk', 'Moderate Risk', 'Low Risk'],
+          datasets: [{
+            data: [stats.high_risk_count, stats.moderate_risk_count, stats.low_risk_count],
+            backgroundColor: ['#ef4444', '#eab308', '#22c55e'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: '#d1d5db', padding: 15 }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

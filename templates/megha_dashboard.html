@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MEGHATROPIQUES Dashboard • StratoCast</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    .loading-text { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .stat-card { transition: transform 0.2s; }
+    .stat-card:hover { transform: translateY(-2px); }
+  </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100">
+  <!-- Sidebar Navigation -->
+  <div class="flex h-screen">
+    <aside class="w-64 bg-gray-950 border-r border-gray-800">
+      <div class="p-6">
+        <div class="flex items-center space-x-3 mb-8">
+          <div class="p-2 bg-blue-600 rounded-lg">
+            <i data-lucide="satellite" class="h-6 w-6 text-white"></i>
+          </div>
+          <h1 class="text-xl font-bold text-white">StratoCast</h1>
+        </div>
+        
+        <nav class="space-y-2">
+          <a href="/" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="home" class="h-5 w-5"></i>
+            <span>Main Dashboard</span>
+          </a>
+          <a href="/dashboard/insat" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="cloud-rain" class="h-5 w-5"></i>
+            <span>INSAT-3D GPI</span>
+          </a>
+          <a href="/dashboard/meghatropiques" class="flex items-center space-x-3 px-4 py-3 rounded-lg bg-blue-600 text-white">
+            <i data-lucide="droplets" class="h-5 w-5"></i>
+            <span>MEGHATROPIQUES</span>
+          </a>
+          <a href="/dashboard/nisar" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition">
+            <i data-lucide="layers" class="h-5 w-5"></i>
+            <span>NISAR</span>
+          </a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="p-6">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-3xl font-bold text-white">MEGHATROPIQUES Dashboard</h2>
+            <p class="text-gray-400 mt-1">Precipitation Rate Ensemble Models</p>
+          </div>
+          <span class="text-sm text-gray-400 px-4 py-2 bg-gray-800 rounded-lg" id="last-updated">
+            <i data-lucide="clock" class="h-4 w-4 inline mr-2"></i>Loading...
+          </span>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="stat-card bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-purple-100 text-sm">Total Records</p>
+                <p class="text-3xl font-bold text-white mt-2" id="total-records">--</p>
+              </div>
+              <div class="bg-purple-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="database" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-blue-100 text-sm">XGBoost Avg</p>
+                <p class="text-3xl font-bold text-white mt-2" id="xgb-avg">--</p>
+              </div>
+              <div class="bg-blue-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="trending-up" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-green-100 text-sm">Random Forest Avg</p>
+                <p class="text-3xl font-bold text-white mt-2" id="rf-avg">--</p>
+              </div>
+              <div class="bg-green-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="tree-deciduous" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card bg-gradient-to-br from-orange-500 to-orange-600 p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-orange-100 text-sm">Ensemble Avg</p>
+                <p class="text-3xl font-bold text-white mt-2" id="ensemble-avg">--</p>
+              </div>
+              <div class="bg-orange-700 bg-opacity-50 p-3 rounded-full">
+                <i data-lucide="layers" class="h-6 w-6 text-white"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <!-- Model Comparison Chart -->
+          <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6">
+            <h3 class="text-xl font-semibold text-gray-200 mb-4">Model Performance Comparison</h3>
+            <canvas id="modelCompChart"></canvas>
+            <div class="mt-4 text-center text-sm text-gray-400">
+              Comparing XGBoost, Random Forest, and Ensemble predictions
+            </div>
+          </div>
+
+          <!-- Precipitation Heatmap Info -->
+          <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6">
+            <h3 class="text-xl font-semibold text-gray-200 mb-4">Precipitation Analysis</h3>
+            <div class="space-y-4">
+              <div class="flex items-center justify-between p-4 bg-gray-900 rounded-lg">
+                <div class="flex items-center space-x-3">
+                  <div class="p-2 bg-blue-600 rounded-lg">
+                    <i data-lucide="droplets" class="h-5 w-5 text-white"></i>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-400">Valid Data Points</p>
+                    <p class="text-xl font-semibold text-white" id="valid-records">--</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-sm text-gray-400">Data Quality</p>
+                  <p class="text-xl font-semibold text-green-400" id="data-quality">--</p>
+                </div>
+              </div>
+              
+              <div class="p-4 bg-gradient-to-r from-blue-900 to-purple-900 rounded-lg">
+                <h4 class="text-sm font-semibold text-white mb-2">Model Insights</h4>
+                <ul class="space-y-2 text-sm text-gray-300">
+                  <li class="flex items-start">
+                    <i data-lucide="check-circle" class="h-4 w-4 text-green-400 mr-2 mt-0.5"></i>
+                    <span>Ensemble model combines XGBoost and Random Forest predictions</span>
+                  </li>
+                  <li class="flex items-start">
+                    <i data-lucide="check-circle" class="h-4 w-4 text-green-400 mr-2 mt-0.5"></i>
+                    <span>Grid-based pixel coordinates from Megha-Tropiques satellite</span>
+                  </li>
+                  <li class="flex items-start">
+                    <i data-lucide="check-circle" class="h-4 w-4 text-green-400 mr-2 mt-0.5"></i>
+                    <span>Acquisition date: December 21, 2013</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="p-4 bg-gray-900 rounded-lg">
+                <h4 class="text-sm font-semibold text-gray-300 mb-3">Risk Distribution</h4>
+                <canvas id="riskDistChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-xl font-semibold text-gray-200">Prediction Data Sample</h3>
+              <button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm">
+                <i data-lucide="download" class="h-4 w-4 inline mr-2"></i>Export CSV
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="text-gray-400 border-b border-gray-700">
+                  <tr>
+                    <th class="text-left py-3 px-4">Pixel Y</th>
+                    <th class="text-left py-3 px-4">Pixel X</th>
+                    <th class="text-left py-3 px-4">XGBoost</th>
+                    <th class="text-left py-3 px-4">Random Forest</th>
+                    <th class="text-left py-3 px-4">Ensemble</th>
+                    <th class="text-left py-3 px-4">Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody id="data-table-body" class="text-gray-300">
+                  <tr><td colspan="6" class="text-center py-8 text-gray-500">Loading data...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    lucide.createIcons();
+  </script>
+
+  <script>
+    let modelCompChart, riskDistChart;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadStats();
+      await loadDataTable();
+      
+      document.getElementById('last-updated').innerHTML = '<i data-lucide="clock" class="h-4 w-4 inline mr-2"></i>' + new Date().toLocaleString();
+      lucide.createIcons();
+    });
+
+    async function loadStats() {
+      try {
+        const response = await fetch('/api/meghatropiques/stats');
+        const stats = await response.json();
+        
+        document.getElementById('total-records').textContent = stats.total_records.toLocaleString();
+        document.getElementById('valid-records').textContent = stats.valid_records.toLocaleString();
+        document.getElementById('xgb-avg').textContent = stats.avg_xgb_pred.toFixed(2);
+        document.getElementById('rf-avg').textContent = stats.avg_rf_pred.toFixed(2);
+        document.getElementById('ensemble-avg').textContent = stats.avg_ensemble.toFixed(2);
+        
+        const qualityPercent = ((stats.valid_records / stats.total_records) * 100).toFixed(1);
+        document.getElementById('data-quality').textContent = qualityPercent + '%';
+        
+        // Create charts
+        createModelComparisonChart(stats);
+        createRiskDistChart();
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    }
+
+    async function loadDataTable() {
+      try {
+        const response = await fetch('/api/meghatropiques/data');
+        const data = await response.json();
+        
+        const tbody = document.getElementById('data-table-body');
+        tbody.innerHTML = '';
+        
+        data.slice(0, 50).forEach(row => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-b border-gray-700 hover:bg-gray-750';
+          tr.innerHTML = `
+            <td class="py-3 px-4">${row.latitude.toFixed(0)}</td>
+            <td class="py-3 px-4">${row.longitude.toFixed(0)}</td>
+            <td class="py-3 px-4 text-blue-400">${row.xgb_rain_pred.toFixed(2)}</td>
+            <td class="py-3 px-4 text-green-400">${row.rf_rain_pred.toFixed(2)}</td>
+            <td class="py-3 px-4 font-semibold text-orange-400">${row.ensemble_mean_pred.toFixed(2)}</td>
+            <td class="py-3 px-4 text-gray-400">${row.acquisition_time}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (error) {
+        console.error('Error loading data table:', error);
+      }
+    }
+
+    function createModelComparisonChart(stats) {
+      const ctx = document.getElementById('modelCompChart').getContext('2d');
+      modelCompChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['XGBoost', 'Random Forest', 'Ensemble'],
+          datasets: [{
+            label: 'Average Prediction',
+            data: [stats.avg_xgb_pred, stats.avg_rf_pred, stats.avg_ensemble],
+            backgroundColor: ['#3b82f6', '#22c55e', '#f97316'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: '#374151' },
+              ticks: { color: '#d1d5db' }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#d1d5db' }
+            }
+          }
+        }
+      });
+    }
+
+    function createRiskDistChart() {
+      const ctx = document.getElementById('riskDistChart').getContext('2d');
+      riskDistChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['Low', 'Moderate', 'High'],
+          datasets: [{
+            data: [60, 30, 10],
+            backgroundColor: ['#22c55e', '#eab308', '#ef4444'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: '#d1d5db', padding: 10, font: { size: 11 } }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
