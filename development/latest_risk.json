@@ -1,0 +1,13 @@
+{
+  "updated_unix": 1760865445,
+  "tiles": [
+    {
+      "lat": 12.97,
+      "lon": 77.59,
+      "predicted_value": 95.07,
+      "risk": 95.07,
+      "level": "Severe",
+      "timestamp": "2025-10-19T09:17:25.385330"
+    }
+  ]
+}

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StratoCast • Real‑Time Risk & Weather</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+  <style>
+    /* Add a little style for the loading state */
+    .loading-text {
+      animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100">
+  <div class="container mx-auto p-4 max-w-7xl">
+    
+    <header class="flex items-center justify-between border-b border-gray-700 pb-4 mb-6">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-blue-600 rounded-lg">
+          <i data-lucide="cloud-lightning" class="h-6 w-6 text-white"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-white">StratoCast</h1>
+      </div>
+      <span class="text-sm text-gray-400" id="last-updated">Connecting...</span>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+      <div class="md:col-span-1 space-y-6">
+        
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+          <h2 class="text-xl font-semibold mb-4 text-gray-300">Risk Assessment (ML Model)</h2>
+          <div class="text-center">
+            <div id="risk-level-badge" class="px-6 py-2 rounded-full text-2xl font-bold inline-block bg-gray-700 text-gray-400 loading-text">
+              Loading...
+            </div>
+            <div id="risk-value" class="text-5xl font-bold my-4 text-gray-200">--</div>
+            <p id="risk-details" class="text-gray-400">Fetching latest prediction...</p>
+          </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+          <h2 class="text-xl font-semibold mb-4 text-gray-300">Monitoring Location</h2>
+          <div id="map" class="h-64 rounded-lg bg-gray-700"></div>
+          <p id="map-coords" class="text-center text-sm text-gray-400 mt-2">Loading map...</p>
+        </div>
+      </div>
+
+      <div class="md:col-span-2 space-y-6">
+        
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+          <h2 class="text-xl font-semibold mb-2 text-gray-300">Hourly Temp & Humidity</h2>
+          <canvas id="chartTempHumidity"></canvas>
+        </div>
+        
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+          <h2 class="text-xl font-semibold mb-2 text-gray-300">Hourly Wind Speed (10m)</h2>
+          <canvas id="chartWind"></canvas>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+          <h2 class="text-xl font-semibold mb-2 text-gray-300">Hourly Precipitation</h2>
+          <canvas id="chartRain"></canvas>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+  </script>
+
+  <script>
+    // --- Chart instances (global) ---
+    let chTempHumidity, chWind, chRain;
+    let map;
+
+    // --- Wait for the page to load ---
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1. Initialize Leaflet Map
+      map = L.map('map').setView([12.98, 77.57], 10); // Default location
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      // 2. Fetch data from our server
+      fetchLatestRisk();
+      fetchHistoricalData();
+
+      // Optional: Auto-refresh every 5 minutes
+      // setInterval(fetchLatestRisk, 300000);
+      // setInterval(fetchHistoricalData, 300000);
+    });
+
+    // --- 1. Fetch LATEST RISK (from our ML model) ---
+    async function fetchLatestRisk() {
+      try {
+        const response = await fetch('/api/latest_risk');
+        if (!response.ok) throw new Error('Failed to fetch risk');
+        const data = await response.json();
+
+        // Update the Risk Assessment Card
+        const riskBadge = document.getElementById('risk-level-badge');
+        riskBadge.innerText = data.level;
+        riskBadge.classList.remove('loading-text', 'bg-gray-700', 'text-gray-400', 'bg-green-600', 'bg-yellow-500', 'bg-red-600', 'bg-purple-600');
+
+        // Apply color based on risk
+        if (data.level === "Low") riskBadge.classList.add('bg-green-600', 'text-white');
+        else if (data.level === "Moderate") riskBadge.classList.add('bg-yellow-500', 'text-black');
+        else if (data.level === "High") riskBadge.classList.add('bg-red-600', 'text-white');
+        else if (data.level === "Severe") riskBadge.classList.add('bg-purple-600', 'text-white');
+
+        document.getElementById('risk-value').innerText = `${data.predicted_value}`;
+        document.getElementById('risk-details').innerText = `ML Model Prediction for ${data.lat.toFixed(2)}, ${data.lon.toFixed(2)}`;
+        document.getElementById('last-updated').innerText = `Last Updated: ${new Date(data.timestamp).toLocaleString()}`;
+        
+        // Update Map
+        const latLon = [data.lat, data.lon];
+        map.setView(latLon, 13);
+        L.marker(latLon).addTo(map)
+          .bindPopup(`<b>Risk: ${data.level}</b> (${data.predicted_value})`)
+          .openPopup();
+        document.getElementById('map-coords').innerText = `Location: ${data.lat.toFixed(4)}, ${data.lon.toFixed(4)}`;
+
+      } catch (error) {
+        console.error('Error fetching latest risk:', error);
+        document.getElementById('risk-level-badge').innerText = "Error";
+      }
+    }
+
+    // --- 2. Fetch HISTORICAL DATA (for charts) ---
+    async function fetchHistoricalData() {
+      try {
+        const response = await fetch('/api/historical_data');
+        if (!response.ok) throw new Error('Failed to fetch historical data');
+        const data = await response.json();
+        
+        // Data is an array of objects, e.g., [{time: '...', T2M: 25.5, ...}, ...]
+        renderCharts(data);
+
+      } catch (error) {
+        console.error('Error fetching historical data:', error);
+      }
+    }
+
+    // --- 3. Charting Functions (from your original file) ---
+    function renderCharts(data) {
+      // Helper function to parse time
+      const parseTime = (t) => new Date(t);
+      
+      // Helper to map data to Chart.js format: {x: time, y: value}
+      const mapData = (key) => data.map(row => ({
+        x: parseTime(row.time),
+        y: row[key]
+      }));
+
+      // Create data series
+      const tempSeries = mapData('T2M');
+      const humSeries = mapData('RH2M');
+      const windSeries = mapData('WS10M');
+      const rainSeries = mapData('PRECTOTCORR');
+
+      // Render charts
+      if (chTempHumidity) chTempHumidity.destroy();
+      chTempHumidity = createTimeSeriesChart('chartTempHumidity', [
+        { label: 'Temp (°C)', data: tempSeries, borderColor: '#f87171', yAxisID: 'y' },
+        { label: 'Humidity (%)', data: humSeries, borderColor: '#38bdf8', yAxisID: 'y1' }
+      ]);
+
+      if (chWind) chWind.destroy();
+      chWind = createTimeSeriesChart('chartWind', [
+        { label: 'Wind (m/s)', data: windSeries, borderColor: '#a78bfa' }
+      ]);
+
+      if (chRain) chRain.destroy();
+      chRain = createTimeSeriesChart('chartRain', [
+        { label: 'Precip (mm/hr)', data: rainSeries, borderColor: '#34d399', type: 'bar' }
+      ]);
+      
+      // --- IMPORTANT ---
+      // The old client-side risk logic is REMOVED.
+      // The risk is now shown in the main "Risk Assessment" card.
+    }
+
+    // Generic function to create a time series chart
+    function createTimeSeriesChart(canvasId, datasets) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      return new Chart(ctx, {
+        type: 'line',
+        data: { datasets: datasets.map(ds => ({ ...ds, borderWidth: 2, tension: 0.1, pointRadius: 0 })) },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              type: 'time',
+              time: { unit: 'hour', tooltipFormat: 'MMM d, h:mm a' },
+              grid: { color: '#4b5563' },
+              ticks: { color: '#d1d5db' }
+            },
+            y: {
+              beginAtZero: true,
+              position: 'left',
+              grid: { color: '#4b5563' },
+              ticks: { color: '#d1d5db' }
+            },
+            // Add second y-axis if needed (for temp/humidity)
+            ...(datasets.length > 1 && {
+              y1: {
+                beginAtZero: true,
+                position: 'right',
+                grid: { drawOnChartArea: false }, // only show ticks
+                ticks: { color: '#d1d5db' }
+              }
+            })
+          },
+          plugins: {
+            legend: { labels: { color: '#d1d5db' } },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          interaction: {
+            mode: 'index',
+            intersect: false
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
