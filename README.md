@@ -13,6 +13,10 @@ It serves a web UI and two JSON APIs:
 - `power_hourly_clean.csv` - Historical weather input data.
 - `nowcast.pkl` - Trained model file used for risk prediction.
 - `development/` - Additional generated data/assets from development.
+- `datasets/` - Satellite datasets and ML models:
+  - `INSAT/` - INSAT-3D GPI data, models, and visualizations
+  - `MEGHATROPIQUES/` - Megha-Tropiques precipitation data and ensemble models
+  - `NISAR/` - NISAR pixel offset data and ML predictions
 
 ## Requirements
 
@@ -39,3 +43,7 @@ Then open: `http://127.0.0.1:5000`
 
 - Ensure `nowcast.pkl` and `power_hourly_clean.csv` remain in the project root.
 - If API responses show server-not-ready errors, verify model/data files exist and load correctly.
+- Raw satellite data files (.h5, .hdf5) are excluded from the repository due to size. They are available in the source datasets:
+  - INSAT: `3RIMG_11NOV2025_0015_L2G_GPI_V01R00.h5`
+  - MEGHATROPIQUES: `MT1MADS_*.h5` 
+  - NISAR: `NISAR_L1_PR_RIFG_*.h5`

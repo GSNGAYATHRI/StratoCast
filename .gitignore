@@ -30,3 +30,5 @@ Thumbs.db
 # Local data/model artifacts
 *.parquet
 *.pkl
+*.h5
+*.hdf5
